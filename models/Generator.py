@@ -33,8 +33,7 @@ def res_block(channels, pad_mode='zeros', norm='batch'):
                          normalization(channels))
 
 class CycleGen(nn.Module):
-    def __init__(self, in_channels_t, out_channels_t, pipe_channels):
-        norm = 'instance'
+    def __init__(self, in_channels_t, out_channels_t, pipe_channels, norm):
         super(CycleGen, self).__init__()
         self.conv1 = conv_block(in_channels_t, pipe_channels, padding=3, pad_mode='reflect', norm=norm)
         self.conv2 = conv_block(pipe_channels, pipe_channels*2, padding=1, norm=norm)
