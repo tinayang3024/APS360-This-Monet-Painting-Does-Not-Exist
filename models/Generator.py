@@ -30,9 +30,10 @@ class ResBlock(nn.Module):
         out = self.conv_block(xb) + xb
         return out
 
-class CycleGen(nn.Module):
+class MonaiGenerator(nn.Module):
+    # Instantiation example: model = MonaiGenerator(3, 3, 64, 6, 'instance', True)
     def __init__(self, in_channels_t, out_channels_t, pipe_channels, num_res, norm, use_dropout):
-        super(CycleGen, self).__init__()
+        super(MonaiGenerator, self).__init__()
         if norm == 'batch':
             normalization = nn.BatchNorm2d
         elif norm == 'instance':
