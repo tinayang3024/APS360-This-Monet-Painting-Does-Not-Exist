@@ -27,66 +27,37 @@ import torch
 """# CycleGAN Utils"""
 
 class ImagePool():
-    """This class implements an image buffer that stores previously generated images.
-    This buffer enables us to update discriminators using a history of generated images
-    rather than the ones produced by the latest generators.
-    """
 
     def __init__(self, pool_size):
-        """Initialize the ImagePool class
-        Parameters:
-            pool_size (int) -- the size of image buffer, if pool_size=0, no buffer will be created
-        """
         self.pool_size = pool_size
-        if self.pool_size > 0:  # create an empty pool
+        if self.pool_size > 0: 
             self.num_imgs = 0
-            self.images = []
+            self.imgs = []
 
-    def query(self, images):
-        """Return an image from the pool.
-        Parameters:
-            images: the latest generated images from the generator
-        Returns images from the buffer.
-        By 50/100, the buffer will return input images.
-        By 50/100, the buffer will return images previously stored in the buffer,
-        and insert the current images to the buffer.
-        """
-        if self.pool_size == 0:  # if the buffer size is 0, do nothing
-            return images
-        return_images = []
-        for image in images:
+    def query(self, imgs):
+        if self.pool_size == 0:
+            return imgs
+        return_imgs = []
+        for image in imgs:
             image = torch.unsqueeze(image.data, 0)
-            if self.num_imgs < self.pool_size:   # if the buffer is not full; keep inserting current images to the buffer
+            if self.num_imgs < self.pool_size:
                 self.num_imgs = self.num_imgs + 1
-                self.images.append(image)
-                return_images.append(image)
+                self.imgs.append(image)
+                return_imgs.append(image)
             else:
                 p = random.uniform(0, 1)
-                if p > 0.5:  # by 50% chance, the buffer will return a previously stored image, and insert the current image into the buffer
-                    random_id = random.randint(0, self.pool_size - 1)  # randint is inclusive
-                    tmp = self.images[random_id].clone()
-                    self.images[random_id] = image
-                    return_images.append(tmp)
-                else:       # by another 50% chance, the buffer will return the current image
-                    return_images.append(image)
-        return_images = torch.cat(return_images, 0)   # collect all the images and return
-        return return_images
+                if p > 0.5: 
+                    random_id = random.randint(0, self.pool_size - 1) 
+                    tmp = self.imgs[random_id].clone()
+                    self.imgs[random_id] = image
+                    return_imgs.append(tmp)
+                else:   
+                    return_imgs.append(image)
+        return_imgs = torch.cat(return_imgs, 0)  
+        return return_imgs
 
 class GANLoss(nn.Module):
-    """Define different GAN objectives.
-    The GANLoss class abstracts away the need to create the target label tensor
-    that has the same size as the input.
-    """
-
     def __init__(self, gan_mode, target_real_label=1.0, target_fake_label=0.0):
-        """ Initialize the GANLoss class.
-        Parameters:
-            gan_mode (str) - - the type of GAN objective. It currently supports vanilla, lsgan, and wgangp.
-            target_real_label (bool) - - label for a real image
-            target_fake_label (bool) - - label of a fake image
-        Note: Do not use sigmoid as the last layer of Discriminator.
-        LSGAN needs no sigmoid. vanilla GANs will handle it with BCEWithLogitsLoss.
-        """
         super(GANLoss, self).__init__()
         self.register_buffer('real_label', torch.tensor(target_real_label))
         self.register_buffer('fake_label', torch.tensor(target_fake_label))
@@ -102,13 +73,6 @@ class GANLoss(nn.Module):
             raise NotImplementedError('gan mode %s not implemented' % gan_mode)
 
     def get_target_tensor(self, prediction, target_is_real):
-        """Create label tensors with the same size as the input.
-        Parameters:
-            prediction (tensor) - - tpyically the prediction from a discriminator
-            target_is_real (bool) - - if the ground truth label is for real images or fake images
-        Returns:
-            A label tensor filled with ground truth label, and with the size of the input
-        """
         if target_is_real:
             target_tensor = self.real_label
         else:
@@ -116,30 +80,14 @@ class GANLoss(nn.Module):
         return target_tensor.expand_as(prediction)
 
     def __call__(self, prediction, target_is_real):
-        """Calculate loss given Discriminator's output and grount truth labels.
-        Parameters:
-            prediction (tensor) - - tpyically the prediction output from a discriminator
-            target_is_real (bool) - - if the ground truth label is for real images or fake images
-        Returns:
-            the calculated loss.
-        """
         if self.gan_mode in ['lsgan', 'vanilla']:
             target_tensor = self.get_target_tensor(prediction, target_is_real)
             loss = self.loss(prediction, target_tensor)
-        elif self.gan_mode == 'wgangp':
-            if target_is_real:
-                loss = -prediction.mean()
-            else:
-                loss = prediction.mean()
         return loss
 
 """# CycleGAN Architecture"""
 
 class CycleGAN(nn.Module):
-  # opt contains: 
-  #   lambda_identity: used for scaling the weight of the identity mapping loss
-  #   lambda_X: weight for cycle loss (X -> Y -> X)
-  #   lambda_Y: weight for cycle loss (Y -> X -> Y)
   def __init__(self, name, opt):
     super(CycleGAN, self).__init__()
     self.name = "CycleGAN" + name
@@ -193,16 +141,6 @@ class CycleGAN(nn.Module):
     self.all_loss_cycle_y = []
 
   def get_scheduler(self, optimizer, opt):
-    """Return a learning rate scheduler
-    Parameters:
-        optimizer          -- the optimizer of the network
-        opt (option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions．　
-                              opt.lr_policy is the name of learning rate policy: linear | step | plateau | cosine
-    For 'linear', we keep the same learning rate for the first <opt.n_epochs> epochs
-    and linearly decay the rate to zero over the next <opt.n_epochs_decay> epochs.
-    For other schedulers (step, plateau, and cosine), we use the default PyTorch schedulers.
-    See https://pytorch.org/docs/stable/optim.html for more details.
-    """
     if opt.lr_policy == 'linear':
         def lambda_rule(epoch):
             lr_l = 1.0 - max(0, epoch - opt.n_epochs)
@@ -210,16 +148,9 @@ class CycleGAN(nn.Module):
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
     elif opt.lr_policy == 'step':
         scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_decay_iters, gamma=0.1)
-    elif opt.lr_policy == 'plateau':
-        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, threshold=0.01, patience=5)
-    elif opt.lr_policy == 'cosine':
-        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=opt.n_epochs, eta_min=0)
-    else:
-        return NotImplementedError('learning rate policy [%s] is not implemented', opt.lr_policy)
     return scheduler
   
   def update_learning_rate(self):
-        """Update learning rates for all the networks; called at the end of every epoch"""
         old_lr = self.optimizers[0].param_groups[0]['lr']
         for scheduler in self.schedulers:
             if self.opt.lr_policy == 'plateau':
@@ -227,29 +158,19 @@ class CycleGAN(nn.Module):
             else:
                 scheduler.step()
 
-        lr = self.optimizers[0].param_groups[0]['lr']
-        print('learning rate %.7f -> %.7f' % (old_lr, lr))
+        new_lr = self.optimizers[0].param_groups[0]['lr']
+        print('learning rate %.7f -> %.7f' % (old_lr, new_lr))
 
   def set_input(self, input):
-        """Unpack input data from the dataloader and perform necessary pre-processing steps.
-        Parameters:
-            input (dict): include the data itself and its metadata information.
-        The option 'direction' can be used to swap domain A and domain B.
-        """
         XtoY = self.opt.direction == 'XtoY'
         self.real_x = input['X' if XtoY else 'Y']
         self.real_y = input['Y' if XtoY else 'X']
 
-  def set_requires_grad(self, nets, requires_grad=False):
-        """Set requies_grad=Fasle for all the networks to avoid unnecessary computations
-        Parameters:
-            nets (network list)   -- a list of networks
-            requires_grad (bool)  -- whether the networks require gradients or not
-        """
-        if not isinstance(nets, list):
-            nets = [nets]
-        for net in nets:
-            if net is not None:
+  def set_requires_grad(self, networks, requires_grad=False):
+        if not isinstance(networks, list):
+            networks = [networks]
+        for network in networks:
+            if network is not None:
                 for param in net.parameters():
                     param.requires_grad = requires_grad
 
@@ -268,7 +189,6 @@ class CycleGAN(nn.Module):
     pred_fake = netD(fake)
     self.loss_D_fake = self.criterionGAN(pred_fake, False)
     
-
     # combined loss and calculate gradients
     self.loss_D = (self.loss_D_real + self.loss_D_fake) / 2
     self.loss_D.backward()
@@ -322,21 +242,20 @@ class CycleGAN(nn.Module):
     self.save_progress.append(progress)
 
   def optimize_parameters(self):
-    """Calculate losses, gradients, and update network weights; called in every training iteration"""
     # forward
-    self.forward()      # compute fake images and reconstruction images.
-    self.record_output_imgs()  # record generated imgs
+    self.forward() 
+    self.record_output_imgs() 
 
     # G_x and G_y
-    self.set_requires_grad([self.netD_x, self.netD_y], False)  # Ds require no gradients when optimizing Gs
-    self.optimizer_G.zero_grad()  # set G_x and G_y's gradients to zero
-    self.backward_G()             # calculate gradients for G_x and G_y
-    self.optimizer_G.step()       # update G_x and G_y's weights
+    self.set_requires_grad([self.netD_x, self.netD_y], False)  
+    self.optimizer_G.zero_grad() 
+    self.backward_G()  
+    self.optimizer_G.step()  
     # D_x and D_y
     self.set_requires_grad([self.netD_x, self.netD_y], True)
-    self.optimizer_D.zero_grad()   # set D_x and D_y's gradients to zero
-    self.backward_D_x()      # calculate gradients for D_x
-    self.backward_D_y()      # calculate graidents for D_y
+    self.optimizer_D.zero_grad()  
+    self.backward_D_x()    
+    self.backward_D_y()   
 
-    self.record_loss()      # record losses
-    self.optimizer_D.step()  # update D_x and D_y's weights
+    self.record_loss()   
+    self.optimizer_D.step()  
