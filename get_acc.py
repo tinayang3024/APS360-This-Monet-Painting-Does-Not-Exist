@@ -1,4 +1,8 @@
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> f9919d511077a4c76dfd3b22be54db7b4ac1e8d1
 import argparse
 import csv
 
@@ -22,10 +26,15 @@ def eval_answer(keys, answers):
     return TN, FP
 
 def load_csv(fp):
+<<<<<<< HEAD
     style_cor = 0
     style_inc = 0
     perf_TN = 0
     perf_FP = 0
+=======
+    TN = 0
+    FP = 0
+>>>>>>> f9919d511077a4c76dfd3b22be54db7b4ac1e8d1
     with open(fp, 'r') as f:
         mycsv = csv.reader(f)
         first_line = True
@@ -44,9 +53,7 @@ def load_csv(fp):
                 continue
             for i in range(1, len(line)):
                 answer = get_answer(line[i])
-                # TN_, FP_ = eval_answer(answer_key[i-1], answer)
-                # TN += TN_
-                # FP += FP_
+
                 style_inc_, style_cor_ = eval_answer(answer_key[i-1][0:3], answer[0:3])
                 perf_TN_, perf_FP_ = eval_answer(answer_key[i-1][3:], answer[3:])
                 style_cor += style_cor_
